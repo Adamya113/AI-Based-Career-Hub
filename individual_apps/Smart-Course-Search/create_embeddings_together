@@ -1,0 +1,129 @@
+import json
+from pinecone import Pinecone, ServerlessSpec
+import os
+from dotenv import load_dotenv
+import yaml
+from together import Together
+
+
+
+load_dotenv()
+
+# Define file paths as constants
+API_FILE_PATH = r"API.yml"
+COURSES_FILE_PATH = r"courses.json"
+
+def load_api_keys(api_file_path):
+    """Loads API keys from a YAML file."""
+    with open(api_file_path, 'r') as f:
+        api_keys = yaml.safe_load(f)
+    return api_keys
+
+
+def load_course_data(json_file_path):
+    """Loads course data from a JSON file."""
+    with open(json_file_path, 'r') as f:
+        course_data = json.load(f)
+    return course_data
+
+
+def prepare_for_embedding(course_data):
+    """Combines relevant course fields for embedding."""
+    prepared_data = []
+    for i, course in enumerate(course_data):
+        combined_text = f"Title: {course.get('title', '')}, Description: {course.get('description', '')}"
+        prepared_data.append(
+            {
+                "course_id": i,
+                "text": combined_text,
+                "course_link": course.get("course_link"),
+                "image_url": course.get("image_url"),
+                "title": course.get("title"),
+            }
+        )
+    return prepared_data
+
+# --- Generate Embeddings using Together AI Model ---
+def generate_embeddings(texts, together_api_key):
+    """Generates embeddings using Together AI model directly."""
+    client = Together(api_key=together_api_key)
+    embeddings = []
+    for text in texts:
+        response = client.embeddings.create(
+            model="WhereIsAI/UAE-Large-V1", input=text
+        )
+        embeddings.append(response.data[0].embedding)
+    return embeddings
+
+# --- Initialize Pinecone ---
+def initialize_pinecone(pinecone_api_key, pinecone_env):
+    """Initializes Pinecone with API key and environment."""
+    pc = Pinecone(api_key=pinecone_api_key)
+    return pc
+
+# --- Upsert Embeddings into Pinecone ---
+def upsert_to_pinecone(pinecone_instance, index_name, prepared_data, embeddings):
+    """Upserts vectors into a Pinecone index."""
+    index = pinecone_instance.Index(index_name)
+    vectors_to_upsert = []
+    for i, item in enumerate(prepared_data):
+        vector = embeddings[i]
+        metadata = {
+            "course_id": item["course_id"],
+            "text": item["text"],
+            "course_link": item["course_link"],
+            "image_url": item["image_url"],
+            "title": item["title"],
+        }
+        vectors_to_upsert.append((str(item["course_id"]), vector, metadata))
+    index.upsert(vectors=vectors_to_upsert)
+
+
+# --- Main Function ---
+def main():
+    try:
+        
+        api_keys = load_api_keys(API_FILE_PATH)
+        together_api_key = api_keys["together_ai_api_key"]
+        pinecone_api_key = api_keys["pinecone_api_key"]
+        pinecone_env = api_keys["pinecone_env"]
+
+        
+        course_data = load_course_data(COURSES_FILE_PATH)
+
+        
+        prepared_data = prepare_for_embedding(course_data)
+        texts_for_embedding = [item["text"] for item in prepared_data]
+
+        
+        print("Generating embeddings...")
+        embeddings = generate_embeddings(texts_for_embedding, together_api_key)
+
+        
+        print("Initializing Pinecone...")
+        pinecone_instance = initialize_pinecone(pinecone_api_key, pinecone_env)
+        
+        
+        index_name = os.getenv("PINECONE_INDEX_NAME") or api_keys.get("pinecone_index_name")
+        if not index_name:
+            raise ValueError("Pinecone index name not found in environment variables or API.yml")
+        
+        
+        if index_name not in pinecone_instance.list_indexes().names():
+            pinecone_instance.create_index(
+                name=index_name,
+                dimension=1024,  # Dimension for UAE-Large-V1
+                metric='cosine'
+            )
+        
+        # Upsert embeddings into Pinecone
+        print("Upserting embeddings to Pinecone...")
+        upsert_to_pinecone(pinecone_instance, index_name, prepared_data, embeddings)
+
+        print("Embeddings generated and upserted to Pinecone successfully!")
+        
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+
+if __name__ == "__main__":
+    main()

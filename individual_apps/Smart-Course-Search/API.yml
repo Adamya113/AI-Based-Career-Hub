@@ -1,0 +1,10 @@
+pinecone_index_name : "embeddings"
+pinecone_api_key: "YOUR KEY"
+pinecone_env: "aws-starter"
+together_ai_api_key: "YOUR KEY"
+cohere_api_key: "YOUR KEY"
+#huggingface:
+  #model_name: "sentence-transformers/all-mpnet-base-v2"
+
+
+  
