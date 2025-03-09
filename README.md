@@ -26,5 +26,16 @@ The app will start at local host.
 ## Note:
 * Make sure you are connected to internet.
 * The models are hosted on Hugging face, offering modularity, agility and extensibility.
+* The apps can also run individually.
 * The entire system can also be run locally using small, efficient Local LLMs.
 * Deployment can be found at: https://huggingface.co/spaces/AdamyaG/education_ai
+
+<details>
+	<summary>
+		<h3>Acknowledgements</h3>
+	</summary>
+	https://huggingface.co/Abhaykumar04
+	<br>https://huggingface.co/bonbibi
+	<br>https://huggingface.co/charulp2499
+	<br>https://huggingface.co/temo12
+</details>
